@@ -8,25 +8,29 @@ I'm a second-year Chemistry with Maths student at UCL, and I wanted a small proj
 
 ## Where I've got to
 
-This is a work in progress. So far I have:
+So far I have:
 
 - loaded the ESOL (Delaney) dataset and turned every SMILES string into an RDKit molecule
 - checked the data: 1,128 molecules, no missing values, no duplicates, and every structure parses
 - looked at the spread of the target (logS runs from about -11.6 to +1.6, averaging around -3)
-- drawn a sample of structures
+- calculated seven RDKit descriptors and fitted a baseline, linear regression and random forest
+- compared a random split with a scaffold split, to see how much a model's score depends on test molecules resembling the training ones
+- looked at where the model goes wrong (see Results)
 
 Still to do:
 
-- calculate molecular descriptors (molecular weight, logP, hydrogen bond donors and acceptors, and so on)
-- fit a baseline model, probably a random forest
-- compare a random train/test split with a scaffold split, to see how much a model's score depends on test molecules resembling the training ones
-- write up what I find
+- add element-count features and/or Morgan fingerprints and see whether the errors on phosphorus compounds drop
+- use cross-validation so the scores don't depend on a single split
 
 ## The data
 
 ESOL is a well-known benchmark of 1,128 small molecules with measured aqueous solubility, given as SMILES strings and logS (the log of solubility in mol/L). The code downloads the DeepChem copy the first time you run it and saves it as `delaney-processed.csv`, so after that it works offline.
 
 Delaney, J. S. *ESOL: Estimating Aqueous Solubility Directly from Molecular Structure.* J. Chem. Inf. Comput. Sci. 2004, 44, 1000-1005.
+
+## Results
+
+The largest errors were mostly organophosphorus compounds. On the test set, the 8 phosphorus-containing molecules had a mean absolute error of 1.94 log units, compared with 0.56 across all test molecules, and the model tended to predict them as less soluble than measured. None of my seven descriptors encodes phosphorus directly, so adding element counts or fingerprints is the obvious next step.
 
 ## What's in the repo
 
