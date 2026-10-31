@@ -1,0 +1,7 @@
+split,model,RMSE,RMSE_sd,R2,R2_sd
+random,Predict the mean,2.098,0.001,-0.003,0.001
+random,Linear regression,0.995,0.005,0.774,0.002
+random,Random forest,0.709,0.007,0.885,0.002
+scaffold,Predict the mean,2.115,0.004,-0.018,0.004
+scaffold,Linear regression,1.023,0.006,0.762,0.003
+scaffold,Random forest,0.804,0.005,0.853,0.002

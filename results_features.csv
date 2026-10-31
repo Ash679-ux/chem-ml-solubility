@@ -1,0 +1,5 @@
+features,n_features,RMSE_all,RMSE_all_sd,MAE_nonP,MAE_nonP_sd,MAE_P,MAE_P_sd,bias_P,bias_P_sd
+7 descriptors (baseline),7,0.709,0.007,0.488,0.005,1.0,0.03,0.61,0.016
++ element counts,16,0.686,0.012,0.475,0.006,1.01,0.027,0.415,0.062
++ Morgan counts,1031,0.681,0.001,0.475,0.003,0.982,0.018,0.54,0.012
++ both,1040,0.675,0.005,0.472,0.003,0.953,0.013,0.503,0.026
