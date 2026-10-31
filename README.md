@@ -2,14 +2,14 @@
 
 I'm a second-year Chemistry with Maths student at UCL, and I wanted a small project that put machine learning to work on a real chemistry question. Solubility is a good one: it matters for drug design and environmental chemistry, and chemists already have decent rules of thumb for it (polar groups help, big greasy aromatic systems hurt). So the question is how much of that a model can pick up from structure alone.
 
-The quantity I'm predicting is **logS**: where S is a molecule's solubility in water, in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
+The quantity I'm predicting is **logS**, the base-10 logarithm of S, a molecule’s solubility in water in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
 
 ## Key findings
 
 - A random forest on seven RDKit descriptors predicts logS with a typical error (RMSE) of 0.71 log units in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average.
 - On ring frameworks it hasn't seen, its error rises to 0.80, about 13% worse.
 - logP (lipophilicity) does most of the work, which fits the chemistry.
-- The biggest remaining errors are 10 phosphates and phosphonates (compounds with a P=O group), which the model predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction. (Possible reasons below, see 'Why might P=O compounds be hard)
+- The biggest remaining errors are 10 phosphates and phosphonates (compounds with a P=O group), which the model predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction. (Possible reasons below, see 'Why might P=O compounds be hard?')
 
 ![Sample molecules](sample_molecules.png)
 
