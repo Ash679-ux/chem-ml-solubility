@@ -2,57 +2,41 @@
 
 I'm a second-year Chemistry with Maths student at UCL, and I wanted a small project that put machine learning to work on a real chemistry question. Solubility is a good one: it matters for drug design and environmental chemistry, and chemists already have decent rules of thumb for it (polar groups help, big greasy aromatic systems hurt). So the question is how much of that a model can pick up from structure alone.
 
-The quantity I'm predicting is **logS**: the base-10 logarithm of a molecule's solubility in water, in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
+The quantity I'm predicting is **logS**: where S is a molecule's solubility in water, in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
+
+## Key findings
+
+- A random forest on seven RDKit descriptors predicts logS with a typical error (RMSE) of 0.71 log units in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average.
+- On ring frameworks it hasn't seen, its error rises to 0.80, about 13% worse.
+- logP (lipophilicity) does most of the work, which fits the chemistry.
+- The biggest remaining errors are 10 phosphates and phosphonates (compounds with a P=O group), which the model predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction. (Possible reasons below, see 'Why might P=O compounds be hard)
 
 ![Sample molecules](sample_molecules.png)
 
 *A random sample of 16 molecules from the dataset, labelled with their measured logS. Small polar molecules sit near or above zero, while the least soluble in this sample (about -3.7 to -4.2) are a steroid, a chloro-iodobenzene and a small alkane.*
 
-## Where I've got to
+## How I tested it
 
-So far I have:
+Each molecule starts as a SMILES string (a line of text that encodes its structure, such as `CCO` for ethanol), which RDKit, a chemistry toolkit for Python, turns into seven descriptors: molecular weight, logP (how much a molecule prefers fat-like surroundings to water-like ones), hydrogen bond donors and acceptors, rotatable bonds (a measure of flexibility), polar surface area (the surface area contributed by polar atoms such as O and N) and the proportion of aromatic atoms.
 
-- loaded the ESOL (Delaney) dataset and turned every SMILES string (a line of text that encodes a molecule's structure, such as `CCO` for ethanol) into an RDKit molecule (RDKit is a chemistry toolkit for Python)
-- checked the data: 1,128 molecules, no missing values, no duplicate SMILES, and every structure parses
-- looked at the spread of the target (logS runs from about -11.6 to +1.6, averaging around -3)
-- calculated seven RDKit descriptors (numbers worked out from a structure, such as molecular weight) and fitted a baseline, linear regression and random forest
-- compared a random split with a scaffold split, to see how much a model's score depends on test molecules resembling the training ones
-- repeated that comparison with cross-validation (repeating the train/test split several times and averaging), so the scores don't depend on a single split
-- looked at which descriptors matter and where the model goes wrong (see Results)
-- tested whether element counts and Morgan fingerprints (a way of encoding which substructures a molecule contains) fix the errors on phosphorus compounds, using cross-validation (they don't)
+I compared three models:
 
-Still to do:
-
-- look more closely at the phosphorus compounds, since better features didn't fix them
-## Results
-
-I compared three models on seven RDKit descriptors: molecular weight, logP (how much a molecule prefers fat-like surroundings to water-like ones), hydrogen bond donors and acceptors, rotatable bonds (a measure of flexibility), polar surface area (TPSA, the surface area contributed by polar atoms such as O and N) and the proportion of aromatic atoms.
-
-- **Predict the mean** always guesses the average logS of the training set. It's the floor any real model has to beat.
+- **Predict the mean** always guesses the average logS of the training data. It's the floor any real model has to beat.
 - **Linear regression** fits a weighted sum of the descriptors.
 - **Random forest** averages the predictions of many decision trees.
 
-Each was tested two ways:
+Each model was scored with 5-fold cross-validation: the data is split into five parts, and each part is predicted by a model trained on the other four, so every molecule gets a prediction from a model that never saw it. I repeated this with three different shuffles and report the average. I ran it two ways:
 
-- **Random split:** 80% of the molecules chosen at random for training, and the other 20% held back for testing.
-- **Scaffold split:** molecules that share a ring framework (the molecule with its side chains stripped off, called a Murcko scaffold) stay together on the same side. The test set therefore contains structures the model hasn't seen.
+- **Random folds:** molecules are assigned to folds at random.
+- **Scaffold folds:** molecules that share a ring framework (the molecule with its side chains stripped off, called a Murcko scaffold) always land in the same fold, so the model is always tested on frameworks it hasn't seen. Ring-free molecules have no framework to share, so each counts as its own group.
 
-| Model | Split | RMSE | R² |
-|---|---|---|---|
-| Predict the mean | random | 2.174 | 0.000 |
-| Linear regression | random | 1.093 | 0.747 |
-| Random forest | random | 0.818 | 0.859 |
-| Predict the mean | scaffold | 2.244 | -0.199 |
-| Linear regression | scaffold | 1.289 | 0.605 |
-| Random forest | scaffold | 0.955 | 0.783 |
+**How to read the numbers.** RMSE (root mean squared error) is the typical size of a prediction error, in logS units, so lower is better. An RMSE of 0.8 means predictions are typically about 0.8 log units off, roughly a factor of 6 in solubility. MAE (mean absolute error) is the average size of the error, ignoring its direction. R² is the fraction of the variation in logS that the model explains: 1 is perfect, 0 is no better than guessing the average, and a negative value is worse than that.
 
-**How to read the table.** RMSE (root mean squared error) is the typical size of a prediction error, in logS units, so lower is better. It penalises big misses more than small ones. An RMSE of 0.8 means predictions are typically about 0.8 log units off, which is roughly a factor of 6 in solubility. R² is the fraction of the variation in logS that the model explains: 1 is perfect, 0 is no better than always guessing the average, and a negative value is worse than that.
+## Results
 
-The random forest beat linear regression on both splits. Its RMSE rose from 0.82 on the random split to 0.96 on the scaffold split, so a random split overestimates how well the model handles new chemistry. The scaffold test set is not the same difficulty as the random one (the "predict the mean" baseline gets a negative R² on it), so RMSE is the fairer number to compare across the two splits.
+### Model comparison
 
-**Checking with cross-validation.** Those numbers come from one split, so I repeated the comparison with 5-fold cross-validation (splitting the data into five parts and predicting each part with a model trained on the other four), and repeated that with three different shuffles of the folds. In the scaffold version, molecules that share a ring framework always stay in the same fold, and each ring-free molecule counts as its own group. The standard deviation across the shuffles was 0.007 or less for every number.
-
-| Model | Split | RMSE | R² |
+| Model | Folds | RMSE | R² |
 |---|---|---|---|
 | Predict the mean | random | 2.098 | -0.003 |
 | Linear regression | random | 0.995 | 0.774 |
@@ -61,50 +45,78 @@ The random forest beat linear regression on both splits. Its RMSE rose from 0.82
 | Linear regression | scaffold | 1.023 | 0.762 |
 | Random forest | scaffold | 0.804 | 0.853 |
 
-The main conclusions hold: the random forest is clearly the best model, and its error rises on unseen ring frameworks (RMSE 0.709 to 0.804, about 13%). Two things change. Errors are lower across the board than on the single split (0.709 against 0.818 for the forest on a random split), so that split happened to be a harder-than-average test set. And under cross-validation linear regression barely gets worse on unseen frameworks (0.995 to 1.023, about 3%), whereas the single split suggested it suffered as much as the forest did. The scaffold cross-validation is also a milder test than the single scaffold split, which deliberately left the rarest frameworks for testing, so 0.804 and 0.955 aren't directly comparable.
+*Mean over three shuffles of the folds. The standard deviation across shuffles was 0.007 or less for every number.*
 
-**Which descriptors matter.** In the random forest, logP carries most of the importance (about 0.82), followed by molecular weight (about 0.10) and polar surface area (about 0.04). The other four are each below 0.02. (Importance is a score for how much the forest relies on each descriptor, and the scores add up to 1.) That fits the chemistry: solubility and lipophilicity are closely linked.
+The random forest is clearly the best model. Its error rises on unseen ring frameworks (0.709 to 0.804), while linear regression barely changes (0.995 to 1.023).
+
+I started with a single 80/20 split, which gave the same ranking but higher errors (forest RMSE 0.82 on a random split and 0.96 on a scaffold split; the full table is in `results.csv`). That split happened to be a harder-than-average test set, and it made linear regression look as badly hit by new frameworks as the forest (about 18% worse). The single scaffold split was also a harsher test than the scaffold folds, because it deliberately left the rarest frameworks for testing.
+
+**Which descriptors matter.** In the random forest, logP carries most of the importance (about 0.82), followed by molecular weight (about 0.10) and polar surface area (about 0.04). The other four are each below 0.02. Importance is a score for how much the forest relies on each descriptor, and the scores add up to 1.
 
 ![Predicted vs measured logS](predicted_vs_measured.png)
 
-*Random forest on the random-split test set. Points on the dashed line are perfect predictions.*
+*Random forest on the single random split. Points on the dashed line are perfect predictions.*
 
-**Where it goes wrong.** The cluster of points well below the line on the right is four phosphorus compounds (measured logS 0.4 to 1.1, predicted -1.8 to -3.3), and they are four of the six largest errors. On the random-split test set, the 8 phosphorus-containing molecules had a mean absolute error (MAE, the average size of the error ignoring its direction) of 1.94 log units, compared with 0.56 across all 226 test molecules (roughly 0.5 for the other 218). The model tended to predict them as less soluble than measured. My first guess was that none of the seven descriptors encodes phosphorus directly, so I tested that next.
+### Where it goes wrong
 
-**Can richer features fix it?** I added element counts (how many C, N, O, S, P, F, Cl, Br and I atoms a molecule has, so the model can see phosphorus directly) and Morgan count fingerprints (1,024 bins recording which small substructures, such as P=O groups, a molecule contains). The test set held only 8 phosphorus compounds, so I compared the feature sets with 5-fold cross-validation (splitting the data into five parts and predicting each part with a model trained on the other four) over all 1,128 molecules. That gives every one of the 43 phosphorus compounds a prediction from a model that never saw it. I repeated it with three different shuffles of the folds. The values are means over the three repeats, and the shuffles moved them by about 0.03 or less, apart from the element-count bias (about 0.06).
+The cluster of points well below the line on the right is four phosphorus compounds, measured as quite soluble (logS 0.4 to 1.1) but predicted as much less soluble. Across cross-validation, the 43 phosphorus compounds in the dataset have an MAE of 1.00 log units, about twice the 0.49 for everything else.
 
-| Features | Number of features | RMSE (all molecules) | MAE, no phosphorus | MAE, phosphorus (n=43) | Bias, phosphorus |
-|---|---|---|---|---|---|
-| 7 descriptors (baseline) | 7 | 0.709 | 0.488 | 1.000 | +0.610 |
-| + element counts | 16 | 0.686 | 0.475 | 1.010 | +0.415 |
-| + Morgan counts | 1,031 | 0.681 | 0.475 | 0.982 | +0.540 |
-| + both | 1,040 | 0.675 | 0.472 | 0.953 | +0.503 |
+**Better features don't fix it.** My first guess was that none of the seven descriptors encodes phosphorus directly. So I added element counts (how many C, N, O, S, P, F, Cl, Br and I atoms a molecule has) and Morgan count fingerprints (1,024 bins recording which small substructures, such as P=O groups, a molecule contains).
 
-*Bias is the average of measured minus predicted logS for the phosphorus compounds, so a positive value means they are predicted as less soluble than they really are.*
+| Features | RMSE (all molecules) | MAE, no phosphorus | MAE, phosphorus (n=43) |
+|---|---|---|---|
+| 7 descriptors (baseline) | 0.709 | 0.488 | 1.000 |
+| + element counts | 0.686 | 0.475 | 1.010 |
+| + Morgan counts | 0.681 | 0.475 | 0.982 |
+| + both | 0.675 | 0.472 | 0.953 |
+
+*Random forest, 5-fold cross-validation, mean over three shuffles. Shuffles moved these numbers by about 0.03 or less. The bias and spread are in `results_features.csv`.*
 
 ![Mean absolute error by feature set](feature_comparison.png)
 
-They didn't fix it. Overall error fell slightly (RMSE 0.709 to 0.675 with both added), but the phosphorus error barely moved. It stays about 1.0 log units whatever features the model gets, roughly twice the error on everything else (about 0.47 to 0.49). Element counts made the phosphorus errors less one-sided (bias +0.61 down to +0.42) without making them any smaller. The best case, both feature sets together, lowered the phosphorus error from 1.00 to 0.95, which is too small a change to read much into with 43 molecules. So my first guess isn't supported: letting the model see phosphorus directly doesn't help. Two possible reasons, which I haven't tested, are that each training fold contains only about 34 phosphorus compounds for the forest to learn from, and that the measured values for some of these compounds may be noisy.
+Overall error fell slightly, but the phosphorus error barely moved. Element counts made the phosphorus errors less one-sided (the average of measured minus predicted fell from +0.61 to +0.42) without making them smaller.
 
-Cross-validation also puts the single-split numbers in context. Across all molecules the baseline forest's RMSE is 0.709, lower than the 0.818 on the single test split, and its phosphorus error is 1.00 rather than 1.94. The single test set happened to contain harder-than-average phosphorus compounds, so it overstated the problem, although phosphorus compounds are still the hardest group.
+**The problem is the P=O group.** The phosphorus compounds fall into two chemical classes: 33 thiophosphates, with a P=S group, and 10 phosphates and phosphonates, with a P=O group. I split the errors by class and compared them with Delaney's original ESOL equation, whose predictions come with the dataset.
 
-**Caveats.** The first model comparison table uses a single split and seed, so the cross-validated version is the more reliable one. Even in the cross-validation, having only 43 phosphorus compounds adds more uncertainty than the spread between fold shuffles shows, so small differences in the feature table aren't meaningful. I also chose the new features after seeing where the model failed.
+| Group | n | MAE: forest | MAE: forest + both feature sets | MAE: ESOL equation |
+|---|---|---|---|---|
+| No phosphorus | 1,085 | 0.49 | 0.47 | 0.70 |
+| P=S | 33 | 0.55 | 0.59 | 0.47 |
+| P=O | 10 | 2.62 | 2.19 | 1.40 |
+
+The forest handles the thiophosphates about as well as everything else. On the 10 P=O compounds it is off by 2.6 log units on average and predicts essentially every one of them as less soluble than measured. The worst cases are small, very soluble compounds such as vamidothion, Dimecron, acephate and triethyl phosphate. The ESOL equation gets the same compounds wrong in the same direction, though by less (1.40). It was fitted by Delaney rather than cross-validated here, so the comparison is only a rough guide, but it suggests these molecules are genuinely hard, not a quirk of my model.
+
+**Why might P=O compounds be hard?** I haven't tested these, but there are three plausible reasons, and they aren't mutually exclusive:
+
+- **The P=O oxygen accepts hydrogen bonds much more strongly than most oxygens.** Most oxygens can accept hydrogen bonds, but the P=O bond is so polarised (closer to P⁺–O⁻ than a true double bond) that this oxygen binds water far more strongly than the oxygen in an ether, ester or ketone. Water therefore solvates these molecules much better than their size suggests. The descriptors don't capture that difference: the acceptor count scores the P=O oxygen the same as any other oxygen, and Crippen's logP, which the model relies on most, may rate these compounds as more lipophilic than they are.
+- **Thiophosphates behave the opposite way.** Sulfur in a P=S group forms at most very weak hydrogen bonds, so thiophosphates are greasy and insoluble (average measured logS -4.56, against -1.49 for the P=O compounds). The two classes look alike to the model, and counting phosphorus atoms can't tell them apart, so the 10 P=O compounds may get pulled towards the 33 thiophosphates.
+- **Several are liquids or low-melting solids,** such as triethyl phosphate and Dimecron. Liquids don't pay the energy cost of breaking up a crystal lattice, so they dissolve more readily than a model trained mostly on solids expects, and none of the descriptors encode melting point.
+
+With only 10 P=O compounds, about 8 per training fold, the forest also has very few examples to learn from.
+
+### Caveats
+
+- The phosphorus conclusions rest on small numbers: 43 phosphorus compounds and only 10 with a P=O group. That uncertainty is larger than the spread between fold shuffles, so small differences in the tables aren't meaningful.
+- I chose the extra features after seeing where the model failed.
+- The ESOL equation was not cross-validated here, so comparing it with the forest is only a rough guide.
+
+## Why I stopped here
+
+I could test the three explanations above, but I decided not to. With only 10 P=O compounds, no test on this dataset could tell the explanations apart: a feature that marks P=O groups would be fitted to the same 10 molecules I used to find the problem, so any improvement would mostly reflect that rather than show why they're hard. Checking computed logP or melting points would mean collecting outside data for each compound, which would be a bigger project than this one. A convincing answer would need a much larger set of phosphates and phosphonates with measured solubility, such as from a bigger database like AqSolDB, which is where I'd start if I picked this up again.
 
 ## The data
 
-ESOL is a well-known benchmark of 1,128 small molecules with measured aqueous solubility, given as SMILES strings and logS. The code downloads the DeepChem copy the first time you run it and saves it as `delaney-processed.csv`, so after that it works offline.
+ESOL is a well-known benchmark of 1,128 small molecules with measured aqueous solubility, given as SMILES strings and logS. Every structure parses, with no missing values or duplicates, and logS runs from about -11.6 to +1.6. The code downloads the DeepChem copy the first time you run it and saves it as `delaney-processed.csv`, so after that it works offline.
 
 Delaney, J. S. *ESOL: Estimating Aqueous Solubility Directly from Molecular Structure.* J. Chem. Inf. Comput. Sci. 2004, 44, 1000-1005.
 
 ## What's in the repo
 
+- `molecules.ipynb` is the notebook with the whole analysis, from loading the data to the phosphorus breakdown
 - `Solubility.py` has the helper functions `load_data()` and `explore()`
-- `molecules.ipynb` is the notebook: it loads and checks the data, computes descriptors, fits the models, compares the two splits, analyses the errors, runs the feature comparison and cross-validates the main comparison
-- `delaney-processed.csv` is the cached dataset
-- `results.csv` is the single-split model comparison
-- `results_cv.csv` is the cross-validated model comparison, with the spread across repeats
-- `results_features.csv` is the cross-validated feature comparison, with the spread across repeats
+- `results_cv.csv`, `results_features.csv` and `results.csv` are the cross-validated model comparison, the feature comparison and the single-split comparison
 - `sample_molecules.png`, `predicted_vs_measured.png` and `feature_comparison.png` are the three figures
+- `delaney-processed.csv` is the cached dataset
 - `requirements.txt` lists the Python packages
 
 ## Running it yourself
@@ -121,7 +133,7 @@ source .venv/bin/activate      # on Windows PowerShell: .venv\Scripts\Activate.p
 pip install -r requirements.txt
 ```
 
-Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. The results are reproducible, because every random step uses a fixed seed. You can also use the helper functions directly:
+Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. The results are reproducible, because every random step uses a fixed seed. The feature comparison fits about 60 random forests, so a full run takes several minutes. You can also use the helper functions directly:
 
 ```python
 from Solubility import load_data, explore
