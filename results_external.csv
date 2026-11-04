@@ -1,0 +1,5 @@
+train on,features,n_train,RMSE_all,RMSE_all_sd,MAE_no phosphorus,MAE_no phosphorus_sd,MAE_P=S,MAE_P=S_sd,MAE_P=O,MAE_P=O_sd,bias_P=O,bias_P=O_sd
+AqSolDB,7 descriptors,7666,0.806,0.001,0.582,0.002,0.661,0.014,1.85,0.027,1.845,0.025
+AqSolDB,7 + P=O count,7666,0.786,0.002,0.583,0.002,0.601,0.007,0.79,0.023,0.718,0.014
+Ulrich,7 descriptors,8688,0.773,0.003,0.548,0.003,0.658,0.022,2.167,0.027,2.165,0.027
+Ulrich,7 + P=O count,8688,0.76,0.003,0.55,0.002,0.58,0.012,1.611,0.019,1.542,0.022

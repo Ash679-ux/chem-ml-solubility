@@ -1,0 +1,5 @@
+split,features,n_P=O_test,RMSE_all,MAE_not P=O,MAE_P=O,bias_P=O,MAE_P=O_sd
+random,7 descriptors,38,0.959,0.671,1.184,0.967,0.006
+random,7 + P=O count,38,0.948,0.669,0.821,0.237,0.019
+scaffold,7 descriptors,31,1.26,0.933,1.313,1.122,0.015
+scaffold,7 + P=O count,31,1.253,0.933,1.028,0.311,0.02
