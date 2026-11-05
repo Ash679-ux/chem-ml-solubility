@@ -1,16 +1,15 @@
 # Can you predict how well a molecule dissolves in water using machine learning?
 
-I'm a second-year Chemistry with Maths student at UCL, and I wanted a small project that put machine learning to work on a real chemistry question. Solubility is a good one: it matters for drug design and environmental chemistry, and chemists already have decent rules of thumb for it (polar groups help, big greasy aromatic systems hurt). So the question is how much of that a model can pick up from structure alone.
+I'm a second-year Chemistry with Maths student at UCL, and I wanted a small project that put machine learning to work on a real chemistry question. Solubility is a good one: it matters for drug design and environmental chemistry, and chemists already have decent rules of thumb for it (polar groups help, big greasy aromatic systems hurt). So the question is how much of that a model can pick up from structure alone, and where it falls short.
 
-The quantity I'm predicting is **logS**, the base-10 logarithm of S, a molecule’s solubility in water in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
+The quantity I'm predicting is **logS**, the base-10 logarithm of a molecule's solubility in water in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
 
 ## Key findings
 
-- A random forest on seven RDKit descriptors predicts logS with a typical error (RMSE) of 0.71 log units in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average.
-- On ring frameworks it hasn't seen, its error rises to 0.80, about 13% worse.
-- logP (lipophilicity) does most of the work, which fits the chemistry.
-- The biggest remaining errors are 10 phosphates and phosphonates (compounds with a P=O group), which the model predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction.
-- A single extra feature, the number of P=O groups, fixes most of it once the model can learn from enough P=O compounds. Trained on a larger dataset (AqSolDB) with every ESOL compound removed, the forest's error on ESOL's 10 P=O compounds falls from 1.85 to 0.79 log units, better than Delaney's equation (1.40), without changing the error on anything else.
+- **A random forest on seven RDKit descriptors predicts logS to within 0.71 log units (RMSE)** in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average. On ring frameworks it hasn't seen, the error rises to 0.80.
+- **logP (lipophilicity) does most of the work,** which fits the chemistry.
+- **Its biggest failures are 10 phosphates and phosphonates** (compounds with a P=O group), which it predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction.
+- **A single extra feature, the number of P=O groups, fixes most of it,** once the model can learn from enough P=O compounds. Trained on a larger dataset (AqSolDB) with every ESOL compound removed, the forest's error on ESOL's 10 P=O compounds falls from 1.85 to 0.79 log units, better than Delaney's equation (1.40). On 31 to 38 unseen P=O compounds in a second dataset, it cuts the systematic under-prediction by about three-quarters. The error on every other molecule is unchanged.
 
 ![Sample molecules](sample_molecules.png)
 
@@ -18,7 +17,14 @@ The quantity I'm predicting is **logS**, the base-10 logarithm of S, a molecule�
 
 ## How I tested it
 
-Each molecule starts as a SMILES string (a line of text that encodes its structure, such as `CCO` for ethanol), which RDKit, a chemistry toolkit for Python, turns into seven descriptors: molecular weight, logP (how much a molecule prefers fat-like surroundings to water-like ones), hydrogen bond donors and acceptors, rotatable bonds (a measure of flexibility), polar surface area (the surface area contributed by polar atoms such as O and N) and the proportion of aromatic atoms.
+Each molecule starts as a SMILES string (a line of text that encodes its structure, such as `CCO` for ethanol). RDKit, a chemistry toolkit for Python, turns it into seven descriptors:
+
+- molecular weight
+- logP, how much a molecule prefers fat-like surroundings to water-like ones
+- hydrogen bond donors and acceptors
+- rotatable bonds, a measure of flexibility
+- polar surface area, the surface area contributed by polar atoms such as O and N
+- the proportion of atoms that are aromatic
 
 I compared three models:
 
@@ -26,7 +32,7 @@ I compared three models:
 - **Linear regression** fits a weighted sum of the descriptors.
 - **Random forest** averages the predictions of many decision trees.
 
-Each model was scored with 5-fold cross-validation: the data is split into five parts, and each part is predicted by a model trained on the other four, so every molecule gets a prediction from a model that never saw it. I repeated this with three different shuffles and report the average. I ran it two ways:
+Each model was scored with 5-fold cross-validation: the data is split into five parts, and each part is predicted by a model trained on the other four, so every molecule gets a prediction from a model that never saw it. I repeated this with three different shuffles and report the average, in two ways:
 
 - **Random folds:** molecules are assigned to folds at random.
 - **Scaffold folds:** molecules that share a ring framework (the molecule with its side chains stripped off, called a Murcko scaffold) always land in the same fold, so the model is always tested on frameworks it hasn't seen. Ring-free molecules have no framework to share, so each counts as its own group.
@@ -50,7 +56,7 @@ Each model was scored with 5-fold cross-validation: the data is split into five 
 
 The random forest is clearly the best model. Its error rises on unseen ring frameworks (0.709 to 0.804), while linear regression barely changes (0.995 to 1.023).
 
-I started with a single 80/20 split, which gave the same ranking but higher errors (forest RMSE 0.82 on a random split and 0.96 on a scaffold split; the full table is in `results.csv`). That split happened to be a harder-than-average test set, and it made linear regression look as badly hit by new frameworks as the forest (about 18% worse). The single scaffold split was also a harsher test than the scaffold folds, because it deliberately left the rarest frameworks for testing.
+I started with a single 80/20 split, which gave the same ranking but higher errors: forest RMSE 0.82 on a random split and 0.96 on a scaffold split (full table in `results.csv`). That split happened to be a harder-than-average test set, and it made linear regression look as badly hit by new frameworks as the forest. The single scaffold split was also a harsher test than the scaffold folds, because it deliberately left the rarest frameworks for testing.
 
 **Which descriptors matter.** In the random forest, logP carries most of the importance (about 0.82), followed by molecular weight (about 0.10) and polar surface area (about 0.04). The other four are each below 0.02. Importance is a score for how much the forest relies on each descriptor, and the scores add up to 1.
 
@@ -87,23 +93,19 @@ Overall error fell slightly, but the phosphorus error barely moved. Element coun
 
 The forest handles the thiophosphates about as well as everything else. On the 10 P=O compounds it is off by 2.6 log units on average and predicts essentially every one of them as less soluble than measured. The worst cases are small, very soluble compounds such as vamidothion, Dimecron, acephate and triethyl phosphate. The ESOL equation gets the same compounds wrong in the same direction, though by less (1.40). It was fitted by Delaney rather than cross-validated here, so the comparison is only a rough guide, but it suggests these molecules are genuinely hard, not a quirk of my model.
 
-**Why might P=O compounds be hard?** There are three plausible reasons, and they aren't mutually exclusive. The next section tests the first one on larger datasets:
+### Why might P=O compounds be hard?
 
-- **The P=O oxygen accepts hydrogen bonds much more strongly than most oxygens.** Most oxygens can accept hydrogen bonds, but the P=O bond is so polarised (closer to P⁺–O⁻ than a true double bond) that this oxygen binds water far more strongly than the oxygen in an ether, ester or ketone. Water therefore solvates these molecules much better than their size suggests. The descriptors don't capture that difference: the acceptor count scores the P=O oxygen the same as any other oxygen, and Crippen's logP, which the model relies on most, may rate these compounds as more lipophilic than they are.
-- **Thiophosphates behave the opposite way.** Sulfur in a P=S group forms at most very weak hydrogen bonds, so thiophosphates are greasy and insoluble (average measured logS -4.56, against -1.49 for the P=O compounds). The two classes look alike to the model, and counting phosphorus atoms can't tell them apart, so the 10 P=O compounds may get pulled towards the 33 thiophosphates.
-- **Several are liquids or low-melting solids,** such as triethyl phosphate and Dimecron. Liquids don't pay the energy cost of breaking up a crystal lattice, so they dissolve more readily than a model trained mostly on solids expects, and none of the descriptors encode melting point.
+There are three plausible reasons, and they aren't mutually exclusive:
 
-With only 10 P=O compounds, about 8 per training fold, the forest also has very few examples to learn from.
+1. **The P=O oxygen accepts hydrogen bonds much more strongly than most oxygens.** The P=O bond is so polarised (closer to P⁺–O⁻ than a true double bond) that this oxygen binds water far more strongly than the oxygen in an ether, ester or ketone, so water solvates these molecules much better than their size suggests. The descriptors miss this: the acceptor count scores the P=O oxygen the same as any other oxygen, and Crippen's logP, which the model relies on most, may rate these compounds as more lipophilic than they are.
+2. **They look like thiophosphates, which behave the opposite way.** Sulfur in a P=S group forms at most very weak hydrogen bonds, so thiophosphates are greasy and insoluble (average measured logS -4.56, against -1.49 for the P=O compounds). Counting phosphorus atoms can't tell the two classes apart, so the 10 P=O compounds may get pulled towards the 33 thiophosphates.
+3. **Several are liquids or low-melting point solids,** such as triethyl phosphate and Dimecron. Liquids don't pay the energy cost of breaking up a crystal lattice, so they dissolve more readily than a model trained mostly on solids expects, and none of the descriptors encode melting point.
 
-### Caveats
-
-- The phosphorus conclusions rest on small numbers: 43 phosphorus compounds and only 10 with a P=O group. That uncertainty is larger than the spread between fold shuffles, so small differences in the tables aren't meaningful.
-- I chose the extra features after seeing where the model failed.
-- The ESOL equation was not cross-validated here, so comparing it with the forest is only a rough guide.
+With only 10 P=O compounds, about 8 per training fold, the forest also has very few examples to learn from. That also makes the first explanation hard to test on ESOL alone: a feature that marks P=O groups would be fitted to the same 10 molecules I used to find the problem.
 
 ## Testing the P=O explanation on more data
 
-With only 10 P=O compounds in ESOL, any feature that marks P=O groups would be fitted to the same 10 molecules I used to find the problem. So I trained the same random forest on two much larger datasets and tested it on ESOL:
+I trained the same random forest on two much larger datasets and tested it on ESOL:
 
 - **AqSolDB** (Sorkun et al., 2019): about 10,000 compounds merged from nine solubility datasets.
 - **Ulrich et al. (2025)**: a carefully curated version of AqSolDB plus 2,195 compounds from the literature, 9,800 in total.
@@ -134,35 +136,40 @@ Ten test compounds is still a small number, so I also split the Ulrich set itsel
 
 **What this shows:**
 
-- **The missing information was the P=O group.** Adding a P=O count, learned from other compounds, cuts the error on ESOL's P=O compounds by more than half and the systematic under-prediction inside the Ulrich set by about three-quarters, including on unseen ring frameworks. The error on everything else doesn't change. This supports the first explanation above: the P=O oxygen accepts hydrogen bonds much more strongly than the descriptors give it credit for.
-- **The training data matters as much as the features.** Ulrich et al. removed every compound with logS above 0.5 as fully miscible, which leaves only 12 soluble P=O compounds (none above 0.49), against 34 (up to 1.58) in AqSolDB. Four of ESOL's P=O compounds are more soluble than anything in Ulrich's P=O training data, and a random forest can't predict values it has never seen. The cutoff suits Ulrich et al.'s aims, but it removes exactly the compounds that are hardest here.
-- **Some under-prediction remains.** The most soluble compounds are still predicted too insoluble (vamidothion: measured 1.14, predicted -0.13; triethyl phosphate: 0.43 against -1.17). That fits the third explanation above, that several are liquids or low-melting solids, which none of the descriptors capture.
+- **The missing information was the P=O group.** A P=O count, learned from other compounds, more than halves the error on ESOL's P=O compounds and cuts the systematic under-prediction inside the Ulrich set by about three-quarters, including on unseen ring frameworks. The error on everything else doesn't change. This supports the first explanation: the descriptors underrate how strongly the P=O oxygen accepts hydrogen bonds.
+- **The training data matters as much as the features.** Ulrich et al. removed every compound with logS above 0.5 as fully miscible. That leaves only 12 soluble P=O compounds (none above 0.49), against 34 (up to 1.58) in AqSolDB. Four of ESOL's P=O compounds are more soluble than anything in Ulrich's P=O training data, and a random forest can't predict values it has never seen. The cutoff suits Ulrich et al.'s aims, but it removes exactly the compounds that are hardest here.
+- **Some under-prediction remains.** The most soluble compounds are still predicted as too insoluble (vamidothion: measured 1.14, predicted -0.13; triethyl phosphate: 0.43 against -1.17). That fits the third explanation, that several are liquids or low-melting solids, which none of the descriptors capture.
 
-**Checking for leaks.** My first pass removed ESOL compounds by exact InChIKey, which missed other stereoisomers of the same compound. A connectivity-only match found 99 more in AqSolDB and 84 in Ulrich, including two P=O compounds (Azodrin and Stirofos). Removing them moved the AqSolDB result only from 0.73 to 0.79, so they weren't driving it.
+**Checking for leaks.** My first pass removed ESOL compounds by exact InChIKey, which missed other stereoisomers of the same compound. Matching on connectivity alone found 99 more in AqSolDB and 84 in Ulrich, including two P=O compounds (Azodrin and Stirofos). Removing them moved the AqSolDB result only from 0.73 to 0.79, so they weren't driving it.
 
-**Caveats.** The ESOL comparison rests on 10 compounds, so the Ulrich splits are the stronger evidence. Matching by InChIKey connectivity catches stereoisomers but not different salt forms or tautomers. Measurements of the same compound can differ between datasets, so some of the error is disagreement between sources. The P=O feature was still chosen because of what I saw in ESOL, but it is learned and tested on different compounds.
+## Limitations
+
+- **The phosphorus conclusions rest on small numbers.** ESOL has 43 phosphorus compounds and only 10 with a P=O group, so small differences in those tables aren't meaningful. The Ulrich splits, with 31 to 38 P=O test compounds, are stronger evidence.
+- **The extra features were chosen after seeing where the model failed.** The P=O count is at least learned and tested on different compounds from the ones that suggested it.
+- **The ESOL equation wasn't cross-validated here,** so comparing it with the forest is only a rough guide.
+- **Removing ESOL from the larger datasets isn't perfect.** Matching by InChIKey connectivity catches stereoisomers but not different salt forms or tautomers, and measurements of the same compound can differ between datasets, so some of the error is disagreement between sources.
+- **Overall accuracy wasn't the focus.** I kept to simple descriptors and a random forest so the results stay easy to interpret. Models trained on the larger datasets score an RMSE of 0.76 to 0.81 on ESOL, against 0.71 when cross-validating within ESOL, because predicting one dataset from another is harder. Stronger models, such as gradient boosting or graph neural networks, would likely lower RMSE further.
 
 ## The data
 
-ESOL is a well-known benchmark of 1,128 small molecules with measured aqueous solubility, given as SMILES strings and logS. Every structure parses, with no missing values or duplicates, and logS runs from about -11.6 to +1.6. The code downloads the DeepChem copy the first time you run it and saves it as `delaney-processed.csv`, so after that it works offline.
+**ESOL** is a well-known benchmark of 1,128 small molecules with measured aqueous solubility, given as SMILES strings and logS. Every structure parses, with no missing values or duplicates, and logS runs from about -11.6 to +1.6. The code downloads the DeepChem copy the first time you run it and saves it as `delaney-processed.csv`, so after that it works offline.
 
-Delaney, J. S. *ESOL: Estimating Aqueous Solubility Directly from Molecular Structure.* J. Chem. Inf. Comput. Sci. 2004, 44, 1000-1005.
+Section 11 of the notebook also downloads **AqSolDB** and the **Ulrich et al.** dataset from their authors' GitHub repositories, and caches them as `aqsoldb.csv` and `ulrich.csv`.
 
-Section 11 of the notebook also downloads two larger datasets from their authors' GitHub repositories and caches them as `aqsoldb.csv` and `ulrich.csv`:
-
-Sorkun, M. C.; Khetan, A.; Er, S. *AqSolDB, a curated reference set of aqueous solubility and 2D descriptors for a diverse set of compounds.* Sci. Data 2019, 6, 143.
-
-Ulrich, N.; Voigt, K.; Kudria, A.; Böhme, A.; Ebert, R.-U. *Prediction of the water solubility by a graph convolutional-based neural network on a highly curated dataset.* J. Cheminform. 2025, 17, 55.
+- Delaney, J. S. *ESOL: Estimating Aqueous Solubility Directly from Molecular Structure.* J. Chem. Inf. Comput. Sci. 2004, 44, 1000-1005.
+- Sorkun, M. C.; Khetan, A.; Er, S. *AqSolDB, a curated reference set of aqueous solubility and 2D descriptors for a diverse set of compounds.* Sci. Data 2019, 6, 143.
+- Ulrich, N.; Voigt, K.; Kudria, A.; Böhme, A.; Ebert, R.-U. *Prediction of the water solubility by a graph convolutional-based neural network on a highly curated dataset.* J. Cheminform. 2025, 17, 55.
 
 ## What's in the repo
 
-- `molecules.ipynb` is the notebook with the whole analysis, from loading the data to the larger-dataset test of the P=O explanation
-- `Solubility.py` has the helper functions `load_data()` and `explore()`
-- `results_cv.csv`, `results_features.csv` and `results.csv` are the cross-validated model comparison, the feature comparison and the single-split comparison
-- `results_external.csv` and `results_external_ulrich.csv` are the larger-dataset results (tested on ESOL, and on splits of the Ulrich set)
-- `sample_molecules.png`, `predicted_vs_measured.png`, `feature_comparison.png` and `po_external.png` are the four figures
-- `delaney-processed.csv` is the cached dataset
-- `requirements.txt` lists the Python packages
+- `molecules.ipynb`: the whole analysis, from loading the data to the larger-dataset test of the P=O explanation
+- `Solubility.py`: the helper functions `load_data()` and `explore()`
+- `results.csv`, `results_cv.csv` and `results_features.csv`: the single-split comparison, the cross-validated model comparison and the feature comparison
+- `results_external.csv` and `results_external_ulrich.csv`: the larger-dataset results, tested on ESOL and on splits of the Ulrich set
+- `sample_molecules.png`, `predicted_vs_measured.png`, `feature_comparison.png` and `po_external.png`: the four figures
+- `delaney-processed.csv`: the cached ESOL dataset
+- `requirements.txt`: the Python packages
+- `LICENSE`: MIT licence
 
 ## Running it yourself
 
@@ -178,7 +185,9 @@ source .venv/bin/activate      # on Windows PowerShell: .venv\Scripts\Activate.p
 pip install -r requirements.txt
 ```
 
-Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. The results are reproducible, because every random step uses a fixed seed. The feature comparison fits about 60 random forests, so a full run takes several minutes. Section 11 needs an internet connection the first time, to download the two larger datasets. You can also use the helper functions directly:
+Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. Every random step uses a fixed seed, so the results are reproducible. A full run takes a few minutes, mostly for the feature comparison, and section 11 needs an internet connection the first time to download the two larger datasets.
+
+You can also use the helper functions directly:
 
 ```python
 from Solubility import load_data, explore
