@@ -4,6 +4,8 @@ I'm a second-year Chemistry with Maths student at UCL, and I wanted a small proj
 
 The quantity I'm predicting is **logS**, the base-10 logarithm of a molecule's solubility in water in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
 
+**See it in action:** the follow-up app, [Molecule Property Explorer](https://github.com/Ash679-ux/Molecule-Property-Explorer), builds on this analysis with an improved model and turns it into a web tool ([live demo](https://molecule-explorer.streamlit.app)).
+
 ## Key findings
 
 - **A random forest on seven RDKit descriptors predicts logS to within 0.71 log units (RMSE)** in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average. On ring frameworks it hasn't seen, the error rises to 0.80.
