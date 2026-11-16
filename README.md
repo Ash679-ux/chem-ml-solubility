@@ -1,5 +1,11 @@
 # Can you predict how well a molecule dissolves in water using machine learning?
 
+**In short:** a standard machine-learning model for solubility gets one group of compounds badly wrong: organophosphates with a P=O group, many of them pesticides. I tested why on two larger datasets and found that it's mostly a data problem: with enough examples the errors shrink, and adding an explicit count of P=O groups removes most of the remaining systematic bias.
+
+![Error on the P=O compounds](po_external.png)
+
+*Error on the 10 P=O compounds in the ESOL dataset. Grey: the original model and Delaney's published equation. Blue and orange: models trained on two larger datasets, without and with a P=O count.*
+
 I'm a second-year Chemistry with Maths student at UCL, and I wanted a small project that put machine learning to work on a real chemistry question. Solubility is a good one: it matters for drug design and environmental chemistry, and chemists already have decent rules of thumb for it (polar groups help, big greasy aromatic systems hurt). So the question is how much of that a model can pick up from structure alone, and where it falls short.
 
 The quantity I'm predicting is **logS**, the base-10 logarithm of a molecule's solubility in water in moles per litre. So logS = -3 means 0.001 mol/L, and a higher (less negative) value means more soluble.
@@ -11,7 +17,8 @@ The quantity I'm predicting is **logS**, the base-10 logarithm of a molecule's s
 - **A random forest on seven RDKit descriptors predicts logS to within 0.71 log units (RMSE)** in cross-validation, against about 1.0 for linear regression and 2.1 for always guessing the average. On ring frameworks it hasn't seen, the error rises to 0.80.
 - **logP (lipophilicity) does most of the work,** which fits the chemistry.
 - **Its biggest failures are 10 phosphates and phosphonates** (compounds with a P=O group), which it predicts as 2.6 log units less soluble than measured on average. Element counts and Morgan fingerprints don't fix this, and Delaney's original ESOL equation gets the same compounds wrong in the same direction.
-- **A single extra feature, the number of P=O groups, fixes most of it,** once the model can learn from enough P=O compounds. Trained on a larger dataset (AqSolDB) with every ESOL compound removed, the forest's error on ESOL's 10 P=O compounds falls from 1.85 to 0.79 log units, better than Delaney's equation (1.40). On 31 to 38 unseen P=O compounds in a second dataset, it cuts the systematic under-prediction by about three-quarters. The error on every other molecule is unchanged.
+- **More data plus a P=O count fixes most of it.** Trained on a larger dataset (AqSolDB) with every ESOL compound removed, and given the number of P=O groups as an extra feature, the forest's error on ESOL's 10 P=O compounds falls from 1.85 to 0.79 log units, better than Delaney's equation (1.40). On 31 to 38 unseen P=O compounds in a second dataset, the count cuts the systematic under-prediction by about three-quarters.
+- **Part of that is the data, not the feature.** With enough training data, Morgan fingerprints reduce the P=O error about as much as the count does, but leave twice as much systematic bias and transfer to ESOL less well. Fingerprints plus the count work best.
 
 ![Sample molecules](sample_molecules.png)
 
@@ -125,8 +132,6 @@ Both already contain almost all of ESOL, so I removed every ESOL compound from t
 
 *Mean over three random-forest seeds; the spread was 0.03 or less. Error on molecules without phosphorus was 0.58 with or without the P=O count.*
 
-![Error on the P=O compounds](po_external.png)
-
 Ten test compounds is still a small number, so I also split the Ulrich set itself, which has 31 to 38 P=O compounds in each test set:
 
 | Split | P=O test compounds | MAE on P=O | Mean error on P=O (measured - predicted) | MAE on everything else |
@@ -138,11 +143,34 @@ Ten test compounds is still a small number, so I also split the Ulrich set itsel
 
 **What this shows:**
 
-- **The missing information was the P=O group.** A P=O count, learned from other compounds, more than halves the error on ESOL's P=O compounds and cuts the systematic under-prediction inside the Ulrich set by about three-quarters, including on unseen ring frameworks. The error on everything else doesn't change. This supports the first explanation: the descriptors underrate how strongly the P=O oxygen accepts hydrogen bonds.
+- **The P=O count fixes most of the error.** Learned from other compounds, it more than halves the error on ESOL's P=O compounds and cuts the systematic under-prediction inside the Ulrich set by about three-quarters, including on unseen ring frameworks. The error on everything else doesn't change. This supports the first explanation: the descriptors underrate how strongly the P=O oxygen accepts hydrogen bonds. (The next section checks how much of this is the feature and how much is the extra data.)
 - **The training data matters as much as the features.** Ulrich et al. removed every compound with logS above 0.5 as fully miscible. That leaves only 12 soluble P=O compounds (none above 0.49), against 34 (up to 1.58) in AqSolDB. Four of ESOL's P=O compounds are more soluble than anything in Ulrich's P=O training data, and a random forest can't predict values it has never seen. The cutoff suits Ulrich et al.'s aims, but it removes exactly the compounds that are hardest here.
 - **Some under-prediction remains.** The most soluble compounds are still predicted as too insoluble (vamidothion: measured 1.14, predicted -0.13; triethyl phosphate: 0.43 against -1.17). That fits the third explanation, that several are liquids or low-melting solids, which none of the descriptors capture.
 
 **Checking for leaks.** My first pass removed ESOL compounds by exact InChIKey, which missed other stereoisomers of the same compound. Matching on connectivity alone found 99 more in AqSolDB and 84 in Ulrich, including two P=O compounds (Azodrin and Stirofos). Removing them moved the AqSolDB result only from 0.73 to 0.79, so they weren't driving it.
+
+## Is it the P=O count, or just the extra data?
+
+The test above changed two things at once: much more training data, and a new feature. Morgan fingerprints already contain bits for the atom environments around a P=O group, and they didn't help on ESOL, but ESOL only has about 8 P=O compounds per training fold. So I repeated the test with fingerprints trained on the larger datasets.
+
+| Features (trained on Ulrich) | Random split (38 P=O): MAE | bias | Scaffold split (31 P=O): MAE | bias |
+|---|---|---|---|---|
+| 7 descriptors | 1.18 | +0.97 | 1.31 | +1.12 |
+| 7 + P=O count | 0.82 | +0.24 | 1.03 | +0.31 |
+| 7 + Morgan counts | 0.81 | +0.47 | 1.04 | +0.50 |
+| 7 + Morgan counts + P=O count | **0.66** | **+0.13** | **0.97** | **+0.17** |
+
+*Mean absolute error and bias (measured minus predicted) on the P=O test compounds, mean over three random-forest seeds. The spread across seeds was 0.02 or less.*
+
+On ESOL's 10 P=O compounds, training on AqSolDB gives 1.85 with the 7 descriptors, 1.37 with fingerprints, 0.79 with the P=O count and 0.90 with both.
+
+**What this shows:**
+
+- **Part of the fix is the extra data.** With 150 to 170 P=O compounds to learn from, fingerprints cut the P=O error about as much as the count does. Once there is enough data, any representation that can see the P=O group helps.
+- **The count still does something fingerprints don't.** Fingerprints leave about twice the systematic under-prediction and transfer to ESOL's P=O compounds much less well (1.37 against 0.79). Adding the count on top of fingerprints removes most of the remaining bias.
+- **Fingerprints help everything else.** They lower the error on molecules without phosphorus, and models trained on the larger datasets with fingerprints reach an RMSE of 0.67 to 0.70 on all of ESOL, slightly better than cross-validating within ESOL (0.71).
+
+So the P=O errors are mostly a data problem, and an explicit P=O count is the most direct way to remove the systematic bias that remains, especially when predicting a different dataset.
 
 ## Limitations
 
@@ -150,7 +178,7 @@ Ten test compounds is still a small number, so I also split the Ulrich set itsel
 - **The extra features were chosen after seeing where the model failed.** The P=O count is at least learned and tested on different compounds from the ones that suggested it.
 - **The ESOL equation wasn't cross-validated here,** so comparing it with the forest is only a rough guide.
 - **Removing ESOL from the larger datasets isn't perfect.** Matching by InChIKey connectivity catches stereoisomers but not different salt forms or tautomers, and measurements of the same compound can differ between datasets, so some of the error is disagreement between sources.
-- **Overall accuracy wasn't the focus.** I kept to simple descriptors and a random forest so the results stay easy to interpret. Models trained on the larger datasets score an RMSE of 0.76 to 0.81 on ESOL, against 0.71 when cross-validating within ESOL, because predicting one dataset from another is harder. Stronger models, such as gradient boosting or graph neural networks, would likely lower RMSE further.
+- **Overall accuracy wasn't the focus.** I kept to simple descriptors, fingerprints and a random forest so the results stay easy to interpret. With the 7 descriptors alone, models trained on the larger datasets score an RMSE of 0.76 to 0.81 on ESOL, against 0.71 when cross-validating within ESOL, because predicting one dataset from another is harder; adding fingerprints brings that to 0.67 to 0.70. Stronger models, such as gradient boosting or graph neural networks, would likely lower RMSE further.
 
 ## The data
 
@@ -168,14 +196,15 @@ Section 11 of the notebook also downloads **AqSolDB** and the **Ulrich et al.** 
 - `Solubility.py`: the helper functions `load_data()` and `explore()`
 - `results.csv`, `results_cv.csv` and `results_features.csv`: the single-split comparison, the cross-validated model comparison and the feature comparison
 - `results_external.csv` and `results_external_ulrich.csv`: the larger-dataset results, tested on ESOL and on splits of the Ulrich set
+- `results_control.csv` and `results_control_ulrich.csv`: the same tests with Morgan fingerprints added (section 12)
 - `sample_molecules.png`, `predicted_vs_measured.png`, `feature_comparison.png` and `po_external.png`: the four figures
 - `delaney-processed.csv`: the cached ESOL dataset
-- `requirements.txt`: the Python packages
+- `requirements.txt`: the Python packages, pinned to the versions I used
 - `LICENSE`: MIT licence
 
 ## Running it yourself
 
-You'll need Python 3.
+You'll need Python 3. I used Python 3.14, and `requirements.txt` pins the exact package versions, so you should get the same numbers.
 
 ```bash
 git clone https://github.com/Ash679-ux/chem-ml-solubility.git
@@ -187,7 +216,7 @@ source .venv/bin/activate      # on Windows PowerShell: .venv\Scripts\Activate.p
 pip install -r requirements.txt
 ```
 
-Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. Every random step uses a fixed seed, so the results are reproducible. A full run takes a few minutes, mostly for the feature comparison, and section 11 needs an internet connection the first time to download the two larger datasets.
+Then open `molecules.ipynb` in VS Code or Jupyter and run all the cells from the top. Every random step uses a fixed seed, so the results are reproducible. A full run takes 15 to 45 minutes depending on the computer, mostly for the fingerprint models in sections 8 and 12. Section 11 needs an internet connection the first time, to download the two larger datasets.
 
 You can also use the helper functions directly:
 
@@ -205,3 +234,6 @@ Python, pandas, NumPy, scikit-learn, RDKit, Jupyter and Matplotlib.
 ## About me
 
 I'm Ashwin, looking for chemistry-related or quantitative analysis internships for summer 2027. If you've got feedback on the project or want to talk about it, I'd be glad to hear from you.
+
+- LinkedIn: [Ashwin Arunachalam](https://www.linkedin.com/in/ashwin-arunachalam-1b0b91345)
+- GitHub: [Ash679-ux](https://github.com/Ash679-ux)
