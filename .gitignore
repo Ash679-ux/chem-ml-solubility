@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 aqsoldb.csv
 ulrich.csv
+cache/
