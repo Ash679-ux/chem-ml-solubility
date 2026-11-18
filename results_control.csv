@@ -1,9 +1,0 @@
-train on,features,RMSE_all,MAE_no phosphorus,MAE_P=S,MAE_P=O,bias_P=O,MAE_P=O_sd
-AqSolDB,7 descriptors,0.806,0.582,0.661,1.85,1.845,0.027
-AqSolDB,7 + P=O count,0.786,0.583,0.601,0.79,0.718,0.023
-AqSolDB,7 + Morgan counts,0.702,0.51,0.584,1.372,1.372,0.043
-AqSolDB,7 + Morgan counts + P=O count,0.694,0.512,0.518,0.9,0.9,0.041
-Ulrich,7 descriptors,0.773,0.549,0.66,2.164,2.163,0.025
-Ulrich,7 + P=O count,0.759,0.55,0.579,1.607,1.543,0.019
-Ulrich,7 + Morgan counts,0.677,0.482,0.556,1.765,1.765,0.014
-Ulrich,7 + Morgan counts + P=O count,0.669,0.482,0.482,1.484,1.464,0.017

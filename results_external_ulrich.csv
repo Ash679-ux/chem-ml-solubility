@@ -1,5 +1,0 @@
-split,features,n_P=O_test,RMSE_all,MAE_not P=O,MAE_P=O,bias_P=O,MAE_P=O_sd
-random,7 descriptors,38,0.958,0.671,1.18,0.965,0.002
-random,7 + P=O count,38,0.947,0.668,0.822,0.237,0.018
-scaffold,7 descriptors,31,1.26,0.933,1.314,1.123,0.011
-scaffold,7 + P=O count,31,1.253,0.933,1.027,0.314,0.017

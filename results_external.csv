@@ -1,5 +1,9 @@
-train on,features,n_train,RMSE_all,RMSE_all_sd,MAE_no phosphorus,MAE_no phosphorus_sd,MAE_P=S,MAE_P=S_sd,MAE_P=O,MAE_P=O_sd,bias_P=O,bias_P=O_sd
-AqSolDB,7 descriptors,7666,0.806,0.001,0.582,0.002,0.661,0.014,1.85,0.027,1.845,0.025
-AqSolDB,7 + P=O count,7666,0.786,0.002,0.583,0.002,0.601,0.007,0.79,0.023,0.718,0.014
-Ulrich,7 descriptors,8688,0.773,0.003,0.549,0.002,0.66,0.014,2.164,0.025,2.163,0.026
-Ulrich,7 + P=O count,8688,0.759,0.003,0.55,0.002,0.579,0.013,1.607,0.019,1.543,0.026
+train on,features,RMSE_all,MAE_no phosphorus,MAE_P=S,MAE_P=O,bias_P=O,MAE_P=O_sd
+AqSolDB,7 descriptors,0.806,0.582,0.661,1.85,1.845,0.027
+AqSolDB,7 + P=O count,0.786,0.583,0.601,0.79,0.718,0.023
+AqSolDB,7 + Morgan counts,0.702,0.51,0.584,1.372,1.372,0.043
+AqSolDB,7 + Morgan counts + P=O count,0.694,0.512,0.518,0.9,0.9,0.041
+Ulrich,7 descriptors,0.773,0.549,0.66,2.164,2.163,0.025
+Ulrich,7 + P=O count,0.759,0.55,0.579,1.607,1.543,0.019
+Ulrich,7 + Morgan counts,0.677,0.482,0.556,1.765,1.765,0.014
+Ulrich,7 + Morgan counts + P=O count,0.669,0.482,0.482,1.484,1.464,0.017
